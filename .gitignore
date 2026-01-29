@@ -25,6 +25,11 @@ logs/
 *.swp
 *.swo
 
+# AI assistant instructions (local, project-specific)
+CLAUDE.md
+AGENTS.md
+.mcp.json
+
 # OS
 .DS_Store
 Thumbs.db
