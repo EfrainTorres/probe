@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -60,7 +61,7 @@ class QdrantClient:
             )
 
             # Create payload indexes for filtering
-            for field in ["workspace_id", "file_path", "language", "chunk_kind"]:
+            for field in ["repo_id", "workspace_id", "file_path", "language", "chunk_kind"]:
                 self.client.create_payload_index(
                     collection_name=self.collection_name,
                     field_name=field,
@@ -235,7 +236,43 @@ class QdrantClient:
                 }
             )
 
+        # Apply glob filters (post-filter since Qdrant doesn't support glob matching)
+        if filters:
+            results = self._apply_glob_filters(results, filters)
+
         return results
+
+    def _apply_glob_filters(
+        self,
+        results: list[dict[str, Any]],
+        filters: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Apply include_globs and exclude_globs filters to results."""
+        include_globs = filters.get("include_globs")
+        exclude_globs = filters.get("exclude_globs")
+
+        if not include_globs and not exclude_globs:
+            return results
+
+        filtered = []
+        for result in results:
+            file_path = result.get("file_path", "")
+
+            # Check include_globs: path must match at least one pattern
+            if include_globs and not any(
+                fnmatch.fnmatch(file_path, pattern) for pattern in include_globs
+            ):
+                continue
+
+            # Check exclude_globs: path must not match any pattern
+            if exclude_globs and any(
+                fnmatch.fnmatch(file_path, pattern) for pattern in exclude_globs
+            ):
+                continue
+
+            filtered.append(result)
+
+        return filtered
 
     async def health_check(self) -> bool:
         """Check if Qdrant is reachable."""

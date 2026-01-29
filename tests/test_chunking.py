@@ -12,23 +12,23 @@ from probe.types import ChunkKind
 class TestDetection:
     """Tests for language and kind detection."""
 
-    def test_detect_python(self):
+    def test_detect_python(self) -> None:
         assert detect_language(Path("foo.py")) == "python"
 
-    def test_detect_typescript(self):
+    def test_detect_typescript(self) -> None:
         assert detect_language(Path("bar.ts")) == "typescript"
         assert detect_language(Path("baz.tsx")) == "tsx"
 
-    def test_detect_unknown(self):
+    def test_detect_unknown(self) -> None:
         assert detect_language(Path("unknown.xyz")) is None
 
-    def test_detect_kind_code(self):
+    def test_detect_kind_code(self) -> None:
         assert detect_kind(Path("main.py")) == ChunkKind.CODE
 
-    def test_detect_kind_doc(self):
+    def test_detect_kind_doc(self) -> None:
         assert detect_kind(Path("README.md")) == ChunkKind.DOC
 
-    def test_detect_kind_config(self):
+    def test_detect_kind_config(self) -> None:
         assert detect_kind(Path("config.yaml")) == ChunkKind.CONFIG
         assert detect_kind(Path("Dockerfile")) == ChunkKind.CONFIG
 
@@ -36,7 +36,7 @@ class TestDetection:
 class TestMarkdownChunking:
     """Tests for markdown chunking."""
 
-    def test_chunk_by_headings(self, sample_markdown: str):
+    def test_chunk_by_headings(self, sample_markdown: str) -> None:
         chunks = chunk_markdown(sample_markdown, Path("README.md"))
 
         # Should have chunks for each heading
@@ -49,11 +49,11 @@ class TestMarkdownChunking:
         for chunk in chunks:
             assert chunk.kind == ChunkKind.DOC
 
-    def test_empty_markdown(self):
+    def test_empty_markdown(self) -> None:
         chunks = chunk_markdown("", Path("empty.md"))
         assert len(chunks) == 0
 
-    def test_no_headings(self):
+    def test_no_headings(self) -> None:
         content = "Just some text\nwithout any headings."
         chunks = chunk_markdown(content, Path("plain.md"))
         assert len(chunks) == 1
@@ -62,7 +62,7 @@ class TestMarkdownChunking:
 class TestLineChunking:
     """Tests for line-based chunking."""
 
-    def test_small_file_single_chunk(self):
+    def test_small_file_single_chunk(self) -> None:
         content = "line1\nline2\nline3"
         chunks = chunk_lines(content, Path("small.txt"))
 
@@ -70,7 +70,7 @@ class TestLineChunking:
         assert chunks[0].start_line == 1
         assert chunks[0].end_line == 3
 
-    def test_large_file_multiple_chunks(self):
+    def test_large_file_multiple_chunks(self) -> None:
         # Create content larger than default chunk size
         lines = [f"line {i}" for i in range(200)]
         content = "\n".join(lines)
@@ -87,7 +87,7 @@ class TestLineChunking:
 class TestChunkFile:
     """Integration tests for chunk_file."""
 
-    def test_chunk_python_file(self, sample_python_code: str):
+    def test_chunk_python_file(self, sample_python_code: str) -> None:
         chunks = chunk_file(sample_python_code, Path("sample.py"))
 
         # Should produce chunks
@@ -98,7 +98,7 @@ class TestChunkFile:
             assert chunk.kind == ChunkKind.CODE
             assert chunk.language == "python"
 
-    def test_chunk_markdown_file(self, sample_markdown: str):
+    def test_chunk_markdown_file(self, sample_markdown: str) -> None:
         chunks = chunk_file(sample_markdown, Path("README.md"))
 
         assert len(chunks) > 0

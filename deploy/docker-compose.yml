@@ -102,6 +102,7 @@ services:
       - reranker_cache:/root/.cache
     environment:
       - MODEL_ID=Qwen/Qwen3-Reranker-0.6B
+      - HOST=0.0.0.0  # Required for Docker port mapping (host binds to 127.0.0.1)
       - PORT=8083
     deploy:
       resources:
@@ -127,6 +128,7 @@ services:
       - reranker_cache:/root/.cache
     environment:
       - MODEL_ID=zeroentropy/zerank-2
+      - HOST=0.0.0.0  # Required for Docker port mapping (host binds to 127.0.0.1)
       - PORT=8083
     deploy:
       resources:

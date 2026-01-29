@@ -14,7 +14,9 @@ class TestOpenFile:
     """Tests for open_file tool."""
 
     @pytest.mark.asyncio
-    async def test_open_file_valid(self, temp_project: Path, monkeypatch):
+    async def test_open_file_valid(
+        self, temp_project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # Change cwd to temp_project for sandbox validation
         monkeypatch.chdir(temp_project)
 
@@ -29,7 +31,9 @@ class TestOpenFile:
         assert "def hello" in result[0].text or "Main module" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_open_file_not_found(self, temp_project: Path, monkeypatch):
+    async def test_open_file_not_found(
+        self, temp_project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.chdir(temp_project)
 
         result = await handle_open_file({
@@ -42,7 +46,9 @@ class TestOpenFile:
         assert "not found" in result[0].text.lower()
 
     @pytest.mark.asyncio
-    async def test_open_file_escape_attempt(self, temp_project: Path, monkeypatch):
+    async def test_open_file_escape_attempt(
+        self, temp_project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.chdir(temp_project)
 
         result = await handle_open_file({

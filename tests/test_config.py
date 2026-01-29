@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from probe.config import (
     ProbeConfig,
     get_workspace_id,
@@ -15,7 +17,7 @@ from probe.config import (
 class TestProbeConfig:
     """Tests for ProbeConfig."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         config = ProbeConfig()
 
         assert config.qdrant_url == "http://127.0.0.1:6333"
@@ -23,7 +25,7 @@ class TestProbeConfig:
         assert config.preset == "lite"
         assert config.reranker_url is None
 
-    def test_from_env(self, monkeypatch):
+    def test_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("QDRANT_URL", "http://custom:6333")
         monkeypatch.setenv("TEI_EMBED_URL", "http://custom:8080")
         monkeypatch.setenv("PROBE_PRESET", "balanced")
@@ -40,7 +42,7 @@ class TestProbeConfig:
 class TestWorkspaceConfig:
     """Tests for workspace configuration."""
 
-    def test_init_workspace(self, tmp_path: Path):
+    def test_init_workspace(self, tmp_path: Path) -> None:
         config = init_workspace(tmp_path, preset="lite")
 
         assert config.workspace_id is not None
@@ -50,7 +52,7 @@ class TestWorkspaceConfig:
         assert (tmp_path / ".probe").is_dir()
         assert (tmp_path / ".probe" / "config.json").is_file()
 
-    def test_load_workspace_config(self, tmp_path: Path):
+    def test_load_workspace_config(self, tmp_path: Path) -> None:
         # Initialize first
         original = init_workspace(tmp_path)
 
@@ -61,11 +63,11 @@ class TestWorkspaceConfig:
         assert loaded.workspace_id == original.workspace_id
         assert loaded.preset == original.preset
 
-    def test_load_nonexistent(self, tmp_path: Path):
+    def test_load_nonexistent(self, tmp_path: Path) -> None:
         config = load_workspace_config(tmp_path)
         assert config is None
 
-    def test_get_workspace_id(self, tmp_path: Path):
+    def test_get_workspace_id(self, tmp_path: Path) -> None:
         # Before init
         assert get_workspace_id(tmp_path) is None
 
@@ -73,7 +75,7 @@ class TestWorkspaceConfig:
         config = init_workspace(tmp_path)
         assert get_workspace_id(tmp_path) == config.workspace_id
 
-    def test_double_init_fails(self, tmp_path: Path):
+    def test_double_init_fails(self, tmp_path: Path) -> None:
         init_workspace(tmp_path)
 
         # Second init should detect existing config

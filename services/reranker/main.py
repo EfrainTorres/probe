@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 # Configuration
 MODEL_ID = os.getenv("MODEL_ID", "Qwen/Qwen3-Reranker-0.6B")
+HOST = os.getenv("HOST", "127.0.0.1")  # Default to localhost for security
 PORT = int(os.getenv("PORT", "8083"))
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -197,6 +198,6 @@ if __name__ == "__main__":
     # Load model on startup
     print(f"Loading model: {MODEL_ID}")
     get_model()
-    print("Model loaded, starting server...")
+    print(f"Model loaded, starting server on {HOST}:{PORT}...")
 
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host=HOST, port=PORT)

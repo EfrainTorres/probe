@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from uuid import uuid4
 
@@ -12,7 +13,7 @@ from probe.types import ChunkKind, IndexedChunk
 
 
 @pytest.fixture
-async def manifest(tmp_path: Path):
+async def manifest(tmp_path: Path) -> AsyncGenerator[Manifest, None]:
     """Create a manifest for testing."""
     db_path = tmp_path / "manifest.sqlite"
     m = Manifest(db_path)
@@ -25,7 +26,7 @@ class TestManifest:
     """Tests for SQLite manifest."""
 
     @pytest.mark.asyncio
-    async def test_file_operations(self, manifest: Manifest):
+    async def test_file_operations(self, manifest: Manifest) -> None:
         file_path = Path("test.py")
 
         # Initially not found
@@ -55,6 +56,7 @@ class TestManifest:
         )
 
         data = await manifest.get_file(file_path)
+        assert data is not None
         assert data["mtime"] == 1234567900.0
         assert data["size"] == 2000
 
@@ -63,7 +65,7 @@ class TestManifest:
         assert await manifest.get_file(file_path) is None
 
     @pytest.mark.asyncio
-    async def test_chunk_operations(self, manifest: Manifest):
+    async def test_chunk_operations(self, manifest: Manifest) -> None:
         file_path = Path("test.py")
 
         # First add the file
@@ -108,7 +110,7 @@ class TestManifest:
         assert len(neighbors) == 1  # Only chunk_idx=0 exists as neighbor
 
     @pytest.mark.asyncio
-    async def test_stats(self, manifest: Manifest):
+    async def test_stats(self, manifest: Manifest) -> None:
         # Empty initially
         stats = await manifest.get_stats()
         assert stats["files_indexed"] == 0
@@ -126,7 +128,7 @@ class TestManifest:
         assert stats["files_indexed"] == 1
 
     @pytest.mark.asyncio
-    async def test_workspace_meta(self, manifest: Manifest):
+    async def test_workspace_meta(self, manifest: Manifest) -> None:
         # Not found initially
         assert await manifest.get_workspace_meta("foo") is None
 
