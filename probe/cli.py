@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 import typer
@@ -64,26 +65,75 @@ def serve(
     watch: bool = typer.Option(True, "--watch/--no-watch", help="Watch for file changes."),
 ) -> None:
     """Start the MCP server (and optionally watch for changes)."""
+    import asyncio
     import sys
 
-    from probe.server import main as run_mcp_server
+    from probe.config import ProbeConfig
+    from probe.server import run_server, set_project_root, set_watcher_state
+    from probe.storage import Manifest, QdrantClient
 
     project_root = path.resolve()
 
-    config = load_workspace_config(project_root)
-    if not config:
+    workspace_config = load_workspace_config(project_root)
+    if not workspace_config:
         # Use stderr since stdout is for MCP protocol
         print("Error: Not initialized. Run 'probe init' first.", file=sys.stderr)
         raise typer.Exit(1)
 
     # Log to stderr (stdout reserved for MCP protocol)
-    print(f"Workspace: {config.workspace_id}", file=sys.stderr)
-    if watch:
-        # TODO: Start watcher in background
-        print("Watch mode: enabled (watcher not yet implemented)", file=sys.stderr)
+    print(f"Workspace: {workspace_config.workspace_id}", file=sys.stderr)
+    print(f"Preset: {workspace_config.preset}", file=sys.stderr)
 
-    # Run the MCP server (blocks, handles stdin/stdout)
-    run_mcp_server(project_root)
+    async def run_with_watcher() -> None:
+        # Set up project root
+        set_project_root(project_root)
+
+        # Load runtime config
+        config = ProbeConfig.from_env()
+
+        # Initialize storage clients for watcher
+        qdrant = QdrantClient(url=config.qdrant_url, preset=workspace_config.preset)
+        await qdrant.ensure_collection()
+
+        manifest = Manifest(project_root / ".probe" / "manifest.sqlite")
+        await manifest.connect()
+
+        watcher_task = None
+
+        try:
+            if watch:
+                from probe.watcher import WatcherState, run_watcher
+
+                # Create shared watcher state
+                state = WatcherState()
+                set_watcher_state(state)
+
+                # Start watcher as background task
+                watcher_task = asyncio.create_task(
+                    run_watcher(
+                        project_root=project_root,
+                        repo_id=workspace_config.repo_id,
+                        workspace_id=workspace_config.workspace_id,
+                        config=config,
+                        qdrant=qdrant,
+                        manifest=manifest,
+                        state=state,
+                    )
+                )
+                print("Watch mode: enabled", file=sys.stderr)
+
+            # Run MCP server (blocks until stdin closes)
+            await run_server(project_root)
+
+        finally:
+            # Clean up
+            if watcher_task:
+                watcher_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await watcher_task
+            await manifest.close()
+
+    asyncio.run(run_with_watcher())
 
 
 @app.command()

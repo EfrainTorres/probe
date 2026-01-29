@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-01-29T05:18:00Z
+last_mapped: 2026-01-29T06:58:00Z
 scanner_version: 2.0.1
 report_version: 2.1.0
-total_files: 32
-total_tokens: 35752
+total_files: 33
+total_tokens: 40268
 coverage:
-  files_analyzed: 25/32
-  tokens_analyzed: 35752/35752
+  files_analyzed: 27/33
+  tokens_analyzed: 40268/40268
   excluded_paths: []
 ---
 
@@ -66,7 +66,7 @@ Probe is an MCP server providing semantic code search for AI assistants. It inde
 
 | Category | Files |
 |----------|-------|
-| Package | [pyproject.toml](pyproject.toml) |
+| Package | [pyproject.toml](pyproject.toml), [services/reranker/requirements.txt](services/reranker/requirements.txt) |
 | Docker | [deploy/docker-compose.yml](deploy/docker-compose.yml), [services/reranker/Dockerfile](services/reranker/Dockerfile) |
 | Linting | [pyproject.toml](pyproject.toml) (ruff + mypy config) |
 | MCP | [.mcp.json.example](.mcp.json.example) |
@@ -79,8 +79,10 @@ Probe is an MCP server providing semantic code search for AI assistants. It inde
 | TEI_EMBED_URL | config.py | No (default: http://127.0.0.1:8080) |
 | RERANKER_URL | config.py | No (auto-enabled for balanced/pro) |
 | PROBE_PRESET | config.py | No (default: lite) |
-| MODEL_ID | services/reranker/main.py | No (default: Qwen3-Reranker) |
+| MODEL_ID | services/reranker/main.py | No (default: Qwen3-Reranker-0.6B) |
+| HOST | services/reranker/main.py | No (default: 127.0.0.1) |
 | PORT | services/reranker/main.py | No (default: 8083) |
+| TEI_IMAGE_TAG | docker-compose.yml | No (default: ghcr.io/huggingface/text-embeddings-inference:1.8) |
 
 ## API Surface
 
@@ -98,9 +100,9 @@ Probe is an MCP server providing semantic code search for AI assistants. It inde
 |---------|-------------|--------|
 | `probe init [PATH]` | Initialize workspace | Implemented |
 | `probe serve [PATH]` | Start MCP server | Implemented |
-| `probe scan [PATH]` | Trigger full index scan | Not implemented |
-| `probe prune` | Remove stale workspaces | Not implemented |
-| `probe doctor` | Health checks | Not implemented |
+| `probe scan [PATH]` | Trigger full index scan | Implemented |
+| `probe prune` | Remove stale workspaces | Stub |
+| `probe doctor` | Health checks | Stub |
 
 ### HTTP Endpoints (Reranker Service)
 
@@ -120,6 +122,7 @@ Probe is an MCP server providing semantic code search for AI assistants. It inde
 | probe/chunking/ | tests/test_chunking.py | Detection + chunking tested |
 | probe/retrieval.py | - | No tests |
 | probe/indexing.py | - | No tests |
+| probe/storage/qdrant.py | - | No tests |
 | services/reranker/ | - | No tests |
 
 ## Directory Structure
@@ -185,6 +188,7 @@ tests/
 
 **Key exports**:
 - `ProbeConfig` - Runtime config from environment
+- `get_repo_id()` - Extract repo ID from git remote
 - `init_workspace()` - Create new workspace
 - `load_workspace_config()` - Load from .probe/config.json
 
@@ -214,13 +218,14 @@ tests/
 **Purpose**: Persistence layer for vectors and metadata
 
 **Components**:
-- `QdrantClient` - Vector database with hybrid search
+- `QdrantClient` - Vector database with hybrid search + glob filtering
 - `Manifest` - SQLite for file tracking and staleness
 
 **Key patterns**:
 - Preset-specific collections (chunks_lite, chunks_balanced, chunks_pro)
 - BM25 with `language="none"` for code
 - UUIDv5 point IDs from position (not content)
+- Post-filter glob matching via fnmatch
 
 **Dependencies**: types.py
 
@@ -269,7 +274,7 @@ tests/
 **Purpose**: MCP server implementation
 
 **Tools**:
-- `search` - Semantic code search (not yet wired)
+- `search` - Semantic code search (wired to retrieval pipeline)
 - `open_file` - Read file with sandbox validation
 - `index_status` - Health status (stub)
 
@@ -278,7 +283,7 @@ tests/
 - Global project root state
 - Symlink resolution for security
 
-**Dependencies**: types.py
+**Dependencies**: config.py, retrieval.py, storage/, types.py
 
 ---
 
@@ -287,8 +292,10 @@ tests/
 **Purpose**: Cross-encoder reranking microservice
 
 **Models supported**:
-- Qwen3-Reranker (LM-style yes/no scoring)
-- zerank-2 (sentence-transformers cross-encoder)
+- Qwen3-Reranker-0.6B (LM-style yes/no scoring) - balanced profile
+- zerank-2 (sentence-transformers cross-encoder) - pro profile
+
+**Security**: Binds to 127.0.0.1 by default (Docker overrides to 0.0.0.0 for port mapping)
 
 **Dependencies**: FastAPI, transformers, torch
 
@@ -379,6 +386,8 @@ sequenceDiagram
 
 **Snippets read from disk**: Always fresh, staleness detected via chunk_hash comparison.
 
+**Glob filters are post-applied**: Qdrant doesn't support glob matching, so include_globs/exclude_globs filter results after vector search.
+
 ## Navigation Guide
 
 **To add a new MCP tool**:
@@ -408,37 +417,34 @@ sequenceDiagram
 |--------|-------|----------|
 | probe/retrieval.py | No test file | High |
 | probe/indexing.py | No test file | High |
+| probe/storage/qdrant.py | No test file | Medium |
 | services/reranker/ | No tests | Medium |
 
 ### Incomplete Features
 
 From TODO comments and stubs:
-- `probe scan` - Not implemented
-- `probe prune` - Not implemented
-- `probe doctor` - Not implemented
+- `probe prune` - Stub (not implemented)
+- `probe doctor` - Stub (not implemented)
 - `serve --watch` - Watch mode not implemented
-- `handle_search` - Returns placeholder
 - `handle_index_status` - Returns hardcoded stub
 
 ### Tech Debt
 
 | Location | Issue |
 |----------|-------|
-| probe/cli.py | 4 TODOs for unimplemented commands |
-| probe/server.py | 2 TODOs for search and status |
-| probe/storage/qdrant.py | 1 TODO for tracking individual ranks |
+| probe/cli.py | TODOs for prune/doctor commands |
+| probe/server.py | TODO for index_status implementation |
+| probe/storage/qdrant.py | TODO for tracking individual dense/bm25 ranks |
 
-**TODO Distribution**: 8 total (6 in probe/, 1 in probe/storage/, 1 in root)
+**TODO Distribution**: 10 total across codebase
 
 ### Unused Code Candidates
 
 | File/Export | Confidence | Evidence |
 |-------------|------------|----------|
-| probe/retrieval.py | High | Not imported by server (search not wired) |
-| probe/indexing.py | High | Not imported by CLI (scan not implemented) |
-| get_workspace_id() | Medium | No references found |
-| get_neighbor_chunks() | Medium | No references found |
-| set/get_workspace_meta() | Medium | No references found |
+| `get_neighbor_chunks()` | High | Manifest method with no callers |
+| `set/get_workspace_meta()` | High | Manifest methods with no callers |
+| `health_check()` | Medium | QdrantClient method not called |
 
 ### Dependency Health
 
@@ -455,14 +461,25 @@ server.py
 cli.py
 ```
 
+### Complexity Observations
+
+**Functions approaching complexity threshold**:
+- `retrieval.py:search()` - 89 lines, handles mode selection + embedding + search + snippets + reranking
+- `indexing.py:index_file()` - 85 lines, handles mtime check + hashing + chunking + embedding + storage
+- `chunking/tree_sitter.py:chunk_with_tree_sitter()` - 76 lines, handles parsing + header extraction + traversal + splitting
+
+**Duplicate patterns worth monitoring**:
+- Path validation/resolution in server.py and indexing.py
+- Chunk hash computation in indexing.py and retrieval.py
+
 ## Suggested First Actions
 
-1. **Wire search handler** - `probe/server.py:handle_search` returns placeholder. Connect to retrieval pipeline.
+1. **Add retrieval tests** - Core search functionality has no test coverage.
 
-2. **Implement scan command** - `probe/cli.py:scan` is marked TODO. Wire to `indexing.run_scan()`.
+2. **Add indexing tests** - Indexing pipeline has no test coverage.
 
-3. **Add retrieval tests** - No tests for the core search functionality.
+3. **Implement index_status** - `probe/server.py:handle_index_status` returns hardcoded stub. Wire to manifest/qdrant.
 
-4. **Add indexing tests** - No tests for the indexing pipeline.
+4. **Implement prune command** - `probe prune` marked as stub.
 
-5. **Implement index_status** - `probe/server.py:handle_index_status` returns hardcoded stub. Wire to manifest/qdrant.
+5. **Implement doctor command** - `probe doctor` marked as stub for health checks.
