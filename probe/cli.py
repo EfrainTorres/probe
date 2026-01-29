@@ -91,17 +91,58 @@ def scan(
     path: Path = typer.Argument(Path("."), help="Project root directory."),
 ) -> None:
     """Manually trigger a full index scan."""
+    import asyncio
+
+    from probe.config import ProbeConfig
+    from probe.indexing import run_scan
+    from probe.storage import Manifest, QdrantClient
+
     project_root = path.resolve()
 
-    config = load_workspace_config(project_root)
-    if not config:
+    workspace_config = load_workspace_config(project_root)
+    if not workspace_config:
         console.print("[red]Not initialized. Run 'probe init' first.[/red]")
         raise typer.Exit(1)
 
     console.print(f"[blue]Scanning {project_root}[/blue]")
+    console.print(f"Workspace: {workspace_config.workspace_id}")
+    console.print(f"Preset: {workspace_config.preset}")
 
-    # TODO: Run indexer
-    console.print("[yellow]Indexer not yet implemented[/yellow]")
+    # Load runtime config
+    config = ProbeConfig.from_env()
+
+    async def do_scan() -> dict[str, int]:
+        # Initialize storage clients
+        qdrant = QdrantClient(url=config.qdrant_url, preset=workspace_config.preset)
+        await qdrant.ensure_collection()
+
+        manifest = Manifest(project_root / ".probe" / "manifest.sqlite")
+        await manifest.connect()
+
+        try:
+            stats = await run_scan(
+                project_root=project_root,
+                repo_id=workspace_config.repo_id,
+                workspace_id=workspace_config.workspace_id,
+                config=config,
+                qdrant=qdrant,
+                manifest=manifest,
+            )
+            return stats
+        finally:
+            await manifest.close()
+
+    try:
+        with console.status("[bold green]Indexing..."):
+            stats = asyncio.run(do_scan())
+
+        console.print("[green]Scan complete![/green]")
+        console.print(f"  Files scanned: {stats['files_scanned']}")
+        console.print(f"  Chunks indexed: {stats['chunks_indexed']}")
+
+    except Exception as e:
+        console.print(f"[red]Scan failed: {e}[/red]")
+        raise typer.Exit(1) from None
 
 
 @app.command()

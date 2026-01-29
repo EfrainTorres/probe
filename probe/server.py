@@ -13,6 +13,9 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from probe.config import ProbeConfig, load_workspace_config
+from probe.retrieval import search as retrieval_search
+from probe.storage import QdrantClient
 from probe.types import IndexStatus
 
 # MCP server instance
@@ -127,14 +130,56 @@ async def handle_search(args: dict[str, Any]) -> list[TextContent]:
     query = args.get("query", "")
     top_k = args.get("top_k", 12)
     mode = args.get("mode", "auto")
+    instruction = args.get("instruction")
+    filters = args.get("filters")
 
-    # TODO: Implement actual search via retrieval pipeline
-    return [
-        TextContent(
-            type="text",
-            text=f"Search not yet implemented. Query: {query}, top_k: {top_k}, mode: {mode}",
+    project_root = get_project_root()
+
+    # Load workspace config
+    workspace_config = load_workspace_config(project_root)
+    if not workspace_config:
+        return [TextContent(
+            type="text", text="Error: Workspace not initialized. Run 'probe init' first."
+        )]
+
+    # Load runtime config (respects workspace preset via env)
+    config = ProbeConfig.from_env()
+
+    # Create Qdrant client with workspace's preset
+    qdrant = QdrantClient(url=config.qdrant_url, preset=workspace_config.preset)
+
+    try:
+        results = await retrieval_search(
+            query=query,
+            repo_id=workspace_config.repo_id,
+            workspace_id=workspace_config.workspace_id,
+            project_root=project_root,
+            config=config,
+            qdrant=qdrant,
+            top_k=top_k,
+            mode=mode,
+            instruction=instruction,
+            filters=filters,
         )
-    ]
+
+        # Format results for MCP response
+        output = []
+        for r in results:
+            output.append({
+                "path": str(r.path),
+                "start_line": r.start_line,
+                "end_line": r.end_line,
+                "snippet": r.snippet,
+                "score": r.score,
+                "stale": r.stale,
+                "source": r.source,
+                "signals": r.signals,
+            })
+
+        return [TextContent(type="text", text=json.dumps(output, indent=2))]
+
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: Search failed: {e}")]
 
 
 async def handle_open_file(args: dict[str, Any]) -> list[TextContent]:
