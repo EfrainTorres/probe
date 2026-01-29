@@ -1,0 +1,145 @@
+# Probe backend services
+# Usage: docker compose --profile <lite|balanced|pro> up -d
+
+services:
+  # =============================================================================
+  # Qdrant - Vector database (all profiles)
+  # =============================================================================
+  qdrant:
+    image: qdrant/qdrant:v1.15.2
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    profiles:
+      - lite
+      - balanced
+      - pro
+    restart: unless-stopped
+
+  # =============================================================================
+  # TEI Embeddings - lite profile (0.6B model, low VRAM)
+  # =============================================================================
+  tei-lite:
+    image: ${TEI_IMAGE_TAG:-ghcr.io/huggingface/text-embeddings-inference:1.8}
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - tei_cache:/data
+    environment:
+      - MODEL_ID=Qwen/Qwen3-Embedding-0.6B
+    command: ["--model-id", "Qwen/Qwen3-Embedding-0.6B"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - lite
+    restart: unless-stopped
+
+  # =============================================================================
+  # TEI Embeddings - balanced profile (4B model)
+  # =============================================================================
+  tei-balanced:
+    image: ${TEI_IMAGE_TAG:-ghcr.io/huggingface/text-embeddings-inference:1.8}
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - tei_cache:/data
+    environment:
+      - MODEL_ID=Qwen/Qwen3-Embedding-4B
+    command: ["--model-id", "Qwen/Qwen3-Embedding-4B"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - balanced
+    restart: unless-stopped
+
+  # =============================================================================
+  # TEI Embeddings - pro profile (8B model)
+  # =============================================================================
+  tei-pro:
+    image: ${TEI_IMAGE_TAG:-ghcr.io/huggingface/text-embeddings-inference:1.8}
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - tei_cache:/data
+    environment:
+      - MODEL_ID=Qwen/Qwen3-Embedding-8B
+    command: ["--model-id", "Qwen/Qwen3-Embedding-8B"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - pro
+    restart: unless-stopped
+
+  # =============================================================================
+  # Reranker service - balanced profile (Qwen3-Reranker-0.6B)
+  # =============================================================================
+  reranker-balanced:
+    build:
+      context: ../services/reranker
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8083:8083"
+    volumes:
+      - reranker_cache:/root/.cache
+    environment:
+      - MODEL_ID=Qwen/Qwen3-Reranker-0.6B
+      - PORT=8083
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - balanced
+    restart: unless-stopped
+
+  # =============================================================================
+  # Reranker service - pro profile (zerank-2)
+  # =============================================================================
+  reranker-pro:
+    build:
+      context: ../services/reranker
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8083:8083"
+    volumes:
+      - reranker_cache:/root/.cache
+    environment:
+      - MODEL_ID=zeroentropy/zerank-2
+      - PORT=8083
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - pro
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  tei_cache:
+  reranker_cache:

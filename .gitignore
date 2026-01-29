@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+logs/
+
+# Environment (local only - .env.example is committed)
+.env
+.env.local
+.env.*.local
+
+# Workspace data (per-project, not shared)
+.probe/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private dev notes (never commit)
+dev-notes/
+scratch/
+TODO.private.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Reranker model cache (large files)
+services/reranker/models/
+services/reranker/.cache/
+
+# Local SQLite manifests (per-machine)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

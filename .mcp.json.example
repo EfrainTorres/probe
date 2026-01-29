@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "probe": {
+      "command": "probe",
+      "args": ["serve", "."],
+      "env": {}
+    }
+  }
+}
